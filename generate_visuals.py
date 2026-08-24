@@ -10,33 +10,26 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+import sys
 
-def load_locus_counts(csv_path: Path) -> tuple[list[str], list[int], list[int]]:
+
+def load_locus_counts(csv_path: Path, row_to_target: int) -> tuple[list[str], list[int]]:
 	with csv_path.open("r", encoding="utf-8", newline="") as handle:
 		rows = list(csv.reader(handle))
 
-	if len(rows) < 3:
-		raise ValueError(f"Expected at least 3 rows in {csv_path}, found {len(rows)}")
+	if len(rows) < row_to_target + 1:
+		raise ValueError(f"Expected at least {row_to_target + 1} rows in {csv_path}, found {len(rows)}")
 
 	loci = [value.strip() for value in rows[0] if value.strip()]
-	total_counts = [int(value) for value in rows[1] if value.strip()]
+	target_row = [int(value) for value in rows[row_to_target] if value.strip()]
 
-	unique_row_index = 3 if len(rows) > 3 else 2
-	unique_counts = [int(value) for value in rows[unique_row_index] if value.strip()]
-
-	if len(loci) != len(total_counts):
+	if len(loci) != len(target_row):
 		raise ValueError(
-			"Locus tag row and total-count row have different lengths: "
-			f"{len(loci)} vs {len(total_counts)}"
+			"Locus tag row and target row have different lengths: "
+			f"{len(loci)} vs {len(target_row)}"
 		)
 
-	if len(loci) != len(unique_counts):
-		raise ValueError(
-			"Locus tag row and unique-count row have different lengths: "
-			f"{len(loci)} vs {len(unique_counts)}"
-		)
-
-	return loci, total_counts, unique_counts
+	return loci, target_row
 
 
 def create_histogram(
@@ -71,30 +64,25 @@ def create_histogram(
 
 
 def main() -> None:
-	csv_path = Path("locus_counts.csv")
+	csv_path_str, row_to_target, title = sys.argv[1], sys.argv[2], sys.argv[3]
+	csv_path = Path(csv_path_str)
 
 	if not csv_path.exists():
 		raise FileNotFoundError(f"{csv_path} was not found")
+	
+	loci, target_row = load_locus_counts(csv_path, int(row_to_target))
 
-	loci, total_counts, unique_counts = load_locus_counts(csv_path)
+	filename = f"{title}_histogram.png"
 
 	create_histogram(
 		loci,
-		total_counts,
-		Path("total_occurrences_histogram.png"),
-		"Total occurrences across all files by locus tag",
-		"Total occurrences across all files",
-	)
-	create_histogram(
-		loci,
-		unique_counts,
-		Path("unique_file_occurrences_histogram.png"),
-		"Unique file occurrences by locus tag",
-		"Unique file occurrences",
+		target_row,
+		Path(filename),
+		f"{title} by locus tag",
+		title,
 	)
 
-	print("Saved histogram to total_occurrences_histogram.png")
-	print("Saved histogram to unique_file_occurrences_histogram.png")
+	print(f"Saved histogram to {filename}")
 
 
 if __name__ == "__main__":
