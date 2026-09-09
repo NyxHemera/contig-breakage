@@ -10,10 +10,6 @@ from pathlib import Path
 from typing import IO
 from typing import Iterator
 
-
-OUTPUT_DIR = Path("Organized_Blast_Results")
-
-
 def parse_args() -> argparse.Namespace:
 	parser = argparse.ArgumentParser(
 		description="Organize BLAST result rows into one file per locus tag."
@@ -22,6 +18,11 @@ def parse_args() -> argparse.Namespace:
 		"--blast_results_dir",
 		default="Blast_Results",
 		help="Directory containing BLAST result files (default: Blast_Results)",
+	)
+	parser.add_argument(
+		"--output_dir",
+		default="Organized_Blast_Results",
+		help="Directory to save organized BLAST result files (default: Organized_Blast_Results)",
 	)
 	parser.add_argument(
 		"--progress_every",
@@ -145,13 +146,14 @@ def organize_blast_results(
 def main() -> None:
 	args = parse_args()
 	blast_results_dir = Path(args.blast_results_dir)
+	output_dir = Path(args.output_dir)
 	result_count = organize_blast_results(
 		blast_results_dir,
-		OUTPUT_DIR,
+		output_dir,
 		args.progress_every,
 		args.max_open_files,
 	)
-	print(f"Saved {result_count} rows into {OUTPUT_DIR}")
+	print(f"Saved {result_count} rows into {output_dir}")
 
 
 if __name__ == "__main__":
