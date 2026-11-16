@@ -38,6 +38,12 @@ def parse_args() -> argparse.Namespace:
 		default=256,
 		help="Maximum number of output files to keep open at once (default: 256)",
 	)
+	parser.add_argument(
+		"--max_files",
+		type=int,
+		default=0,
+		help="Maximum number of files to process from sorted input files (default: 0, meaning all files)",
+	)
 	return parser.parse_args()
 
 
@@ -49,7 +55,7 @@ def iter_blast_files(blast_results_dir: Path) -> Iterator[Path]:
 		raise NotADirectoryError(f"{blast_results_dir} is not a directory")
 
 	with os.scandir(blast_results_dir) as entries:
-		for entry in entries:
+		for entry in sorted(entries, key=lambda item: item.name):
 			if entry.is_file():
 				yield Path(entry.path)
 
@@ -59,28 +65,34 @@ def organize_blast_results(
 	output_dir: Path,
 	progress_every: int,
 	max_open_files: int,
+	max_files: int,
 ) -> int:
 	output_dir.mkdir(parents=True, exist_ok=True)
 	if max_open_files < 1:
 		raise ValueError("--max_open_files must be >= 1")
+	if max_files < 0:
+		raise ValueError("--max_files must be >= 0")
 
 	output_handles: OrderedDict[str, IO[str]] = OrderedDict()
 	output_writers: dict[str, csv.writer] = {}
 	result_count = 0
 	file_count = 0
 	header = [
+		"original_genome",
 		"query_id",
-		"locus_tag",
+		"subject_seq_id",
+		"subject_accession",
 		"percent_identity",
-		"alignment_length",
-		"mismatches",
-		"gap_opens",
+		"number_of_identical_matches",
+		"alignment_query_length",
+		"alignment_subject_length",
+		"evalue",
+		"subject_length",
 		"query_start",
 		"query_end",
 		"subject_start",
 		"subject_end",
-		"evalue",
-		"bit_score",
+		"sstrand",
 		"break_type",
 		"break_position",
 	]
@@ -108,9 +120,17 @@ def organize_blast_results(
 		output_writers[locus_tag] = writer
 		return writer
 
+	blast_files = list(iter_blast_files(blast_results_dir))
+	selected_files = blast_files
+	if max_files > 0:
+		selected_files = selected_files[:max_files]
+
 	try:
-		for blast_file in iter_blast_files(blast_results_dir):
+		for blast_file in selected_files:
 			file_count += 1
+			original_genome = blast_file.name.removesuffix(".blastn.txt")
+			if original_genome == blast_file.name:
+				original_genome = blast_file.stem
 			with blast_file.open("r", encoding="utf-8") as handle:
 				for raw_line in handle:
 					line = raw_line.strip()
@@ -118,7 +138,7 @@ def organize_blast_results(
 						continue
 
 					columns = line.split()
-					if len(columns) < 12:
+					if len(columns) < 13:
 						continue
 
 					break_type = columns[0][-3:]
@@ -126,12 +146,29 @@ def organize_blast_results(
 						continue
 
 					locus_tag = columns[1]
-					subject_start = columns[8]
-					subject_end = columns[9]
-					break_position = subject_start if break_type == "beg" else subject_end
+
+					try:
+						subject_length = int(columns[8])
+						query_start = int(columns[9])
+						query_end = int(columns[10])
+						subject_start = int(columns[11])
+						subject_end = int(columns[12])
+					except ValueError:
+						continue
+
+					if break_type == "beg":
+						if query_start == 1:
+							break_position = subject_start
+						else:
+							break_position = -1
+					else:
+						if query_end == 250:
+							break_position = subject_end
+						else:
+							break_position = -1
 
 					writer = get_writer(locus_tag)
-					writer.writerow(columns + [break_type, break_position])
+					writer.writerow([original_genome] + columns + [break_type, break_position])
 					result_count += 1
 
 			if progress_every > 0 and file_count % progress_every == 0:
@@ -152,6 +189,7 @@ def main() -> None:
 		output_dir,
 		args.progress_every,
 		args.max_open_files,
+		args.max_files,
 	)
 	print(f"Saved {result_count} rows into {output_dir}")
 

@@ -34,6 +34,11 @@ def parse_args() -> argparse.Namespace:
 		required=True,
 		help="Directory containing per-locus TSV files (for example Organized_Blast_Results)",
 	)
+	parser.add_argument(
+		"--exclude_no_break",
+		action="store_true",
+		help="Exclude break_position -1 from printed counts and histogram output",
+	)
 	return parser.parse_args()
 
 
@@ -143,8 +148,9 @@ def plot_histogram(locus_tag: str, counts: Counter[int | str], output_dir: Path)
 
 def print_counts(locus_tag: str, counts: Counter[int | str]) -> None:
 	print(f"Break position counts for {locus_tag}")
-	# for break_position in sorted(counts, key=break_sort_key):
-	# 	print(f"{break_position}\t{counts[break_position]}")
+	for break_position in sorted(counts, key=break_sort_key):
+		if break_position == -1:
+			print(f"{break_position}\t{counts[break_position]}")
 
 
 def main() -> None:
@@ -179,6 +185,9 @@ def main() -> None:
 			data_error_locus_tags.append(locus_tag)
 			print(str(err), file=sys.stderr)
 			continue
+
+		if args.exclude_no_break:
+			counts.pop(-1, None)
 
 		if not counts:
 			print(f"No break_position values found in {tsv_path}")
