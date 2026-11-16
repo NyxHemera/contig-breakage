@@ -1,7 +1,5 @@
 # Contig Break Identification Standard Workflow
 
-This repository contains a set of scripts for processing genome FASTA files, creating local BLAST databases, and comparing sequence fragments to identify matches. The main workflow starts with `extract_genome_sequences.py`, which prepares genome sequences for BLAST-based screening.
-
 ## Step 1 - Extract Genome Sequences:
 
 `extract_genome_sequences.py` does the following:
